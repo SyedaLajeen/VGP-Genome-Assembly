@@ -16,25 +16,22 @@ optical maps to produce chromosome-level haplotype assemblies.
 
 Genome assembly is the process of reconstructing the complete DNA
 sequence of an organism from millions of short sequencing reads.
-Think of it like solving a jigsaw puzzle — each read is a small piece,
-and the assembler figures out how the pieces fit together to rebuild
-the full picture.
+Think of it like solving a jigsaw puzzle where each read is a small
+piece and the assembler figures out how all the pieces fit together
+to rebuild the full picture.
 
 Modern pipelines like VGP use multiple types of sequencing data
-together to produce assemblies that are more accurate and complete
+together to produce assemblies that are more complete and accurate
 than any single technology alone.
 
 ---
 
 ## Objective
 
-The goal of this project is to:
-
-- Assemble the *S. cerevisiae* S288C genome from synthetic PacBio
-  HiFi reads using the VGP Galaxy pipeline
-- Produce two fully phased haplotype assemblies (Hap1 and Hap2)
-- Evaluate assembly quality using multiple QC tools
-- Scaffold contigs to chromosome level using Bionano and Hi-C data
+- Assemble the *S. cerevisiae* S288C genome from synthetic PacBio HiFi reads using the VGP Galaxy pipeline
+- Produce two fully phased haplotype assemblies — Hap1 and Hap2
+- Evaluate assembly quality using BUSCO, Merqury, and gfastats
+- Scaffold contigs to chromosome level using Bionano optical maps and Hi-C data
 
 ---
 
@@ -46,7 +43,7 @@ The goal of this project is to:
 | Strain | S288C |
 | Estimated genome size | ~11.7 Mb |
 | Ploidy | Diploid |
-| Chromosomes | 16 |
+| Number of chromosomes | 16 |
 
 ---
 
@@ -54,9 +51,7 @@ The goal of this project is to:
 
 | Dataset | Format | Source |
 |---------|--------|--------|
-| PacBio HiFi reads — file 1 | FASTA | [Zenodo 6098306](https://zenodo.org/record/6098306) |
-| PacBio HiFi reads — file 2 | FASTA | [Zenodo 6098306](https://zenodo.org/record/6098306) |
-| PacBio HiFi reads — file 3 | FASTA | [Zenodo 6098306](https://zenodo.org/record/6098306) |
+| PacBio HiFi reads — 3 files, 50x coverage | FASTA | [Zenodo 6098306](https://zenodo.org/record/6098306) |
 | Illumina Hi-C forward reads | FASTQ.GZ | [Zenodo 5550653](https://zenodo.org/record/5550653) |
 | Illumina Hi-C reverse reads | FASTQ.GZ | [Zenodo 5550653](https://zenodo.org/record/5550653) |
 | Bionano optical map | CMAP | [Zenodo 5887339](https://zenodo.org/record/5887339) |
@@ -70,70 +65,120 @@ The goal of this project is to:
 | Cutadapt | 4.4+galaxy0 | Remove adapter sequences from HiFi reads |
 | Meryl | 1.3+galaxy6 | Count k-mers from reads |
 | GenomeScope2 | 2.0+galaxy2 | Estimate genome size and heterozygosity |
-| hifiasm | 0.19.8+galaxy0 | Assemble contigs using HiFi + Hi-C reads |
-| gfastats | 1.3.6+galaxy0 | Convert assembly format and generate stats |
+| hifiasm | 0.19.8+galaxy0 | Assemble contigs using HiFi and Hi-C reads |
+| gfastats | 1.3.6+galaxy0 | Convert GFA to FASTA and generate statistics |
 | BUSCO | 5.5.0+galaxy0 | Check gene completeness of assembly |
 | Merqury | 1.3+galaxy3 | Measure assembly accuracy using k-mers |
 | Bionano Hybrid Scaffold | — | Scaffold contigs using optical maps |
 | BWA-MEM | 0.7.17+galaxy4 | Map Hi-C reads to assembly |
 | Samtools | 1.15+galaxy0 | Filter and sort mapped reads |
-| YaHS | 1.2a+galaxy1 | Hi-C based chromosome-level scaffolding |
+| YaHS | 1.2a+galaxy1 | Hi-C chromosome-level scaffolding |
 | PretextMap | 0.1.9+galaxy0 | Generate Hi-C contact map |
 | PretextSnapshot | 0.0.4+galaxy1 | Save contact map as image |
 
 ---
 
 ## Step-by-Step Workflow
-HiFi reads (3 FASTA files)
-│
-▼
-Step 1 — Adapter Trimming (Cutadapt)
-Remove any adapter sequences that may have been added during
-sequencing and could interfere with assembly.
-│
-▼
-Step 2 — k-mer Counting and Genome Profiling (Meryl + GenomeScope2)
-Count all 31-letter DNA substrings (k-mers) from the reads.
-GenomeScope2 uses this to estimate genome size, heterozygosity,and sequencing coverage before assembly begins.
-│
-▼
-Step 3 — Hi-C Phased Contig Assembly (hifiasm)
-Assemble HiFi reads into contigs. Hi-C reads are used at this
-stage to separate the two haplotypes (Hap1 and Hap2).
-│
-▼
-Step 4 — Format Conversion and Statistics (gfastats)
-Convert assembly graph files (GFA) to standard sequence files
-(FASTA). Generate basic statistics like N50 and total length.
-│
-▼
-Step 5 — Quality Control (BUSCO + Merqury)BUSCO checks if expected genes are present in the assembly.
-Merqury compares k-mers from reads to the assembly to measure
-base-level accuracy without needing a reference genome.
-│
-▼
-Step 6 — Optical Map Scaffolding (Bionano)
-Use physical DNA maps from Bionano to join contigs into
-larger scaffolds and fill some gaps.
-│
-▼
-Step 7 — Hi-C Scaffolding (BWA-MEM + Samtools + YaHS)
-Map Hi-C reads to the Bionano scaffolds. YaHS uses the
-contact frequency information to arrange scaffolds into
-chromosome-level sequences.
-│
-▼
-Step 8 — Contact Map Visualization (PretextMap + PretextSnapshot)
-Generate a heatmap showing Hi-C contacts across the genome.
-A good map shows 16 clear diagonal blocks for S. cerevisiae.
-│
-▼
-Final Assembly — chromosome-level Hap1 assembly
+
+### Step 1 — Adapter Trimming (Cutadapt)
+The three HiFi FASTA files were first processed to remove any
+adapter sequences that may have been introduced during sequencing.
+These adapters can interfere with assembly if not removed. All reads
+containing adapter sequences were discarded rather than trimmed.
+
+### Step 2 — k-mer Counting (Meryl)
+Meryl was used to count all 31-letter DNA substrings, called k-mers,
+across all three HiFi read files. Each file was processed separately
+to allow parallel computation, and the resulting databases were merged
+into a single combined k-mer database.
+
+### Step 3 — Genome Profiling (GenomeScope2)
+The merged k-mer database was used as input to GenomeScope2, which
+fits a statistical model to the k-mer frequency distribution. This
+allowed estimation of the haploid genome size, heterozygosity level,
+sequencing coverage, and repeat content before assembly began.
+
+### Step 4 — Hi-C Phased Contig Assembly (hifiasm)
+The trimmed HiFi reads were assembled into contigs using hifiasm
+running in Hi-C phased mode. Both Hi-C read files were provided
+alongside the HiFi reads, allowing hifiasm to use the chromatin
+contact information to separate the two haplotypes. The output was
+two separate contig graphs — one for Hap1 and one for Hap2.
+
+### Step 5 — GFA to FASTA Conversion and Statistics (gfastats)
+The assembly graph files produced by hifiasm are in GFA format.
+gfastats was used to convert these into standard FASTA format for
+downstream tools. gfastats was also used to generate assembly
+statistics including contig count, total length, N50, and largest
+contig for both haplotypes.
+
+### Step 6 — Gene Completeness Assessment (BUSCO)
+BUSCO was run on both haplotype FASTA files using the Ascomycota
+lineage database. It checked whether genes expected to be present
+in single copy across fungi were found in the assembly. A high
+percentage of complete single-copy genes indicates a complete
+and well-assembled genome.
+
+### Step 7 — k-mer Quality Assessment (Merqury)
+Merqury compared k-mers from the original reads against k-mers
+in the two haplotype assemblies. This produced quality value scores
+indicating base-level accuracy, completeness statistics, and spectra
+plots showing how k-mers are distributed between the two haplotypes.
+
+### Step 8 — Bionano Optical Map Scaffolding (Bionano Hybrid Scaffold)
+The Bionano CMAP optical map file was used to scaffold the hifiasm
+contigs. Optical mapping provides long-range physical information
+about the order and spacing of sequence motifs across the genome,
+which helps join contigs into longer scaffolds where Hi-C data
+alone is insufficient.
+
+### Step 9 — Hi-C Read Mapping (BWA-MEM and Samtools)
+The Illumina Hi-C reads were mapped to the Bionano scaffolded
+assembly using BWA-MEM. Samtools was then used to filter for
+properly paired reads and sort the resulting BAM file by read name,
+preparing it for input to the scaffolding tool.
+
+### Step 10 — Hi-C Chromosome-Level Scaffolding (YaHS)
+YaHS used the Hi-C contact frequency information from the mapped
+reads to arrange the Bionano scaffolds into chromosome-level
+sequences. Regions of the genome that physically interact more
+frequently in the cell are placed closer together in the final
+assembly.
+
+### Step 11 — Contact Map Generation (PretextMap and PretextSnapshot)
+Hi-C reads were remapped to the final YaHS scaffolded assembly.
+PretextMap converted the BAM alignment file into a contact map
+format. PretextSnapshot was used to export this as a PNG image,
+producing a visual heatmap of Hi-C contacts across the genome.
+For a correct chromosome-level assembly of S. cerevisiae, this
+map should show 16 distinct bright diagonal blocks corresponding
+to the 16 chromosomes.
+
+---
+
+## Explanation of Key Output Files
+
+| File | What it means |
+|------|---------------|
+| `genomescope_linear_plot.png` | Shows k-mer frequency distribution — two peaks confirm a diploid genome |
+| `genomescope_log_plot.png` | Same plot on a log scale — easier to see low-frequency k-mers |
+| `genomescope_summary.txt` | Text summary of genome size, heterozygosity, and coverage estimates |
+| `gfastats_contig_stats.txt` | Contig-level assembly stats for Hap1 and Hap2 before scaffolding |
+| `final_assembly_stats.txt` | Scaffold-level stats after YaHS — shows final assembly quality |
+| `busco_hap1_image.png` | Bar chart showing what percentage of expected genes were found |
+| `busco_hap1_summary.txt` | Exact BUSCO gene counts as text |
+| `merqury_spectra_cn.png` | k-mer copy number distribution colored by how many times found in assembly |
+| `merqury_spectra_asm.png` | k-mers colored by which haplotype contains them — confirms phasing |
+| `merqury_qv_stats.txt` | Quality value score — higher means fewer errors in assembly |
+| `bionano_report.txt` | Full report from Bionano hybrid scaffolding step |
+| `contact_map_pre_scaffolding.png` | Hi-C contact map before YaHS — shows contigs before ordering |
+| `contact_map_final.png` | Hi-C contact map after YaHS — 16 diagonal blocks = 16 chromosomes |
+
 ---
 
 ## Results Summary
 
-### Genome Profile (GenomeScope2)
+### Genome Profile — GenomeScope2
 
 | Property | Value |
 |----------|-------|
@@ -142,11 +187,9 @@ Final Assembly — chromosome-level Hap1 assembly
 | Diploid sequencing coverage | ~50x |
 | Model fit | >93% |
 
-![GenomeScope2 Linear Plot](genome-scope/genomescope_linear_plot.png)
-
 ---
 
-### Contig Assembly (hifiasm Hi-C phased)
+### Contig Assembly — hifiasm Hi-C Phased
 
 | Metric | Hap1 | Hap2 |
 |--------|------|------|
@@ -157,7 +200,7 @@ Final Assembly — chromosome-level Hap1 assembly
 
 ---
 
-### BUSCO Assessment (Ascomycota lineage)
+### BUSCO Assessment — Ascomycota Lineage
 
 | Category | Hap1 |
 |----------|------|
@@ -165,73 +208,46 @@ Final Assembly — chromosome-level Hap1 assembly
 | Duplicated | Low |
 | Missing | ~29 genes |
 
-![BUSCO Summary](busco/busco_hap1_image.png)
-
 ---
 
-### Merqury k-mer QC
-
-![Spectra-CN](merqury/merqury_spectra_cn.png)
-![Spectra-ASM](merqury/merqury_spectra_asm.png)
-
----
-
-### Hi-C Contact Maps
-
-A contact map shows how often different parts of the genome
-interact with each other. Bright diagonal blocks represent
-individual chromosomes.
-
-| Before Scaffolding | After Scaffolding |
-|:-----------------:|:-----------------:|
-| ![Pre](hi-c-scaffolding/contact_map_pre_scaffolding.png) | ![Final](hi-c-scaffolding/contact_map_final.png) |
-
-> The final contact map shows clear chromosome-level organization
-> consistent with the 16 chromosomes of *S. cerevisiae*.
-
----
 ---
 
 ## How to Reproduce
 
-1. Go to [usegalaxy.cz](https://usegalaxy.cz) and create an account
-2. Upload the input datasets from the Zenodo links in the Input Data section above
-3. Follow the full step-by-step tutorial at:
-   [VGP Galaxy Tutorial](https://training.galaxyproject.org/training-material/topics/assembly/tutorials/vgp_genome_assembly/tutorial.html)
+1. Go to [usegalaxy.cz](https://usegalaxy.cz) and create a free account
+2. Upload input data from the Zenodo links listed in the Input Data section above
+3. Follow the complete tutorial step by step at the link in the References section
 4. Run each tool in the order described in the Workflow section above
-5. Download result files and compare with this repository
+5. Download your result files and compare with those in this repository
 
 ---
 
 ## Conclusion
 
-This project successfully demonstrates the VGP genome assembly
-pipeline applied to *Saccharomyces cerevisiae* S288C. Starting from
-raw PacBio HiFi reads, the pipeline produced two phased haplotype
-assemblies with high completeness (>95% BUSCO), good contiguity,
-and chromosome-level scaffolding confirmed by Hi-C contact maps.
+This project successfully applied the VGP genome assembly pipeline
+to *Saccharomyces cerevisiae* S288C. Starting from raw synthetic
+PacBio HiFi reads, the pipeline produced two phased haplotype
+assemblies with high gene completeness of over 95% complete
+single-copy BUSCO genes, a contig N50 of approximately 922 kb,
+and chromosome-level scaffolding confirmed by a Hi-C contact map
+showing 16 clear diagonal blocks matching the known 16 chromosomes
+of this organism.
 
-The use of multiple data types — HiFi reads for accurate contig
-assembly, Hi-C data for phasing and scaffolding, and Bionano optical
-maps for additional contiguity — demonstrates the power of the
-multi-platform VGP approach for producing reference-quality genomes.
+The combination of HiFi reads for accurate contig assembly, Hi-C
+data for haplotype phasing and chromosome-level scaffolding, and
+Bionano optical maps for additional contiguity improvement
+demonstrates the strength of the multi-platform VGP approach for
+producing reference-quality genome assemblies.
 
 ---
 
 ## References
 
-1. Rhie et al. (2021). Towards complete and error-free genome
-   assemblies of all vertebrate species. *Nature* 592, 737–746.
-2. Cheng et al. (2021). Haplotype-resolved de novo assembly using
-   phased assembly graphs with hifiasm. *Nature Methods* 18, 170–175.
-3. Simão et al. (2015). BUSCO: assessing genome assembly and
-   annotation completeness with single-copy orthologs.
-   *Bioinformatics* 31(19), 3210–3212.
-4. Rhie et al. (2020). Merqury: reference-free quality, completeness,
-   and phasing assessment for genome assemblies. *Genome Biology* 21, 245.
-5. Ranallo-Benavidez et al. (2020). GenomeScope 2.0 and Smudgeplots
-   for reference-free profiling of polyploid genomes.
-   *Nature Communications* 11, 1432.
+1. Rhie et al. (2021). Towards complete and error-free genome assemblies of all vertebrate species. *Nature* 592, 737–746.
+2. Cheng et al. (2021). Haplotype-resolved de novo assembly using phased assembly graphs with hifiasm. *Nature Methods* 18, 170–175.
+3. Simão et al. (2015). BUSCO: assessing genome assembly and annotation completeness with single-copy orthologs. *Bioinformatics* 31(19), 3210–3212.
+4. Rhie et al. (2020). Merqury: reference-free quality, completeness, and phasing assessment for genome assemblies. *Genome Biology* 21, 245.
+5. Ranallo-Benavidez et al. (2020). GenomeScope 2.0 and Smudgeplots for reference-free profiling of polyploid genomes. *Nature Communications* 11, 1432.
 6. [VGP Galaxy Tutorial](https://training.galaxyproject.org/training-material/topics/assembly/tutorials/vgp_genome_assembly/tutorial.html)
 
 ---
@@ -239,5 +255,4 @@ multi-platform VGP approach for producing reference-quality genomes.
 ## Author
 
 **[SYEDA LAJEEN]**
-Assembly performed using the VGP pipeline on Galaxy as part of a
-genome bioinformatics course.
+Assembly performed using the VGP pipeline on Galaxy as part of a genome bioinformatics course.
