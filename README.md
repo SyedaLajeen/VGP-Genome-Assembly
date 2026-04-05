@@ -1,10 +1,5 @@
 # VGP Genome Assembly — *Saccharomyces cerevisiae* S288C
 
-![Platform](https://img.shields.io/badge/Platform-Galaxy-blue)
-![Status](https://img.shields.io/badge/Status-Complete-brightgreen)
-![Species](https://img.shields.io/badge/Species-S.cerevisiae-orange)
-![Method](https://img.shields.io/badge/Method-Hi--C%20Phased-purple)
-
 A de novo diploid genome assembly of *Saccharomyces cerevisiae* S288C
 performed using the Vertebrate Genome Project (VGP) pipeline on Galaxy,
 combining PacBio HiFi long reads, Illumina Hi-C data, and Bionano
